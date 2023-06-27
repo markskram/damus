@@ -84,7 +84,7 @@ class UserSettingsStore: ObservableObject {
     @StringSetting(key: "default_media_uploader", default_value: .nostrBuild)
     var default_media_uploader: MediaUploader
     
-    @Setting(key: "show_wallet_selector", default_value: true)
+    @Setting(key: "show_wallet_selector", default_value: false)
     var show_wallet_selector: Bool
     
     @Setting(key: "left_handed", default_value: false)
@@ -126,6 +126,10 @@ class UserSettingsStore: ObservableObject {
     @Setting(key: "truncate_timeline_text", default_value: false)
     var truncate_timeline_text: Bool
     
+    /// Nozaps mode gimps note zapping to fit into apple's content-tipping guidelines. It can not be configurable to end-users on the app store
+    @Setting(key: "nozaps", default_value: true)
+    var nozaps: Bool
+    
     @Setting(key: "truncate_mention_text", default_value: true)
     var truncate_mention_text: Bool
     
@@ -137,6 +141,9 @@ class UserSettingsStore: ObservableObject {
 
     @Setting(key: "show_only_preferred_languages", default_value: false)
     var show_only_preferred_languages: Bool
+    
+    @Setting(key: "multiple_events_per_pubkey", default_value: false)
+    var multiple_events_per_pubkey: Bool
 
     @Setting(key: "onlyzaps_mode", default_value: false)
     var onlyzaps_mode: Bool

@@ -24,7 +24,7 @@ class ZapsModel: ObservableObject {
     }
     
     func subscribe() {
-        var filter = NostrFilter.filter_kinds([NostrKind.zap.rawValue])
+        var filter = NostrFilter(kinds: [.zap])
         switch target {
         case .profile(let profile_id):
             filter.pubkeys = [profile_id]
@@ -53,15 +53,10 @@ class ZapsModel: ObservableObject {
         case .notice:
             break
         case .eose:
-            let events = state.events.lookup_zaps(target: target).map { $0.request }
+            let events = state.events.lookup_zaps(target: target).map { $0.request.ev }
             load_profiles(profiles_subid: profiles_subid, relay_id: relay_id, load: .from_events(events), damus_state: state)
         case .event(_, let ev):
             guard ev.kind == 9735 else {
-                return
-            }
-            
-            if let zap = state.zaps.zaps[ev.id] {
-                state.events.store_zap(zap: zap)
                 return
             }
             

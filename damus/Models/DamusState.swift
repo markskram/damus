@@ -35,8 +35,17 @@ struct DamusState {
     func add_zap(zap: Zapping) -> Bool {
         // store generic zap mapping
         self.zaps.add_zap(zap: zap)
+        let stored = self.events.store_zap(zap: zap)
+        
+        // thread zaps
+        if let ev = zap.event, !settings.nozaps, zap.is_in_thread {
+            // [nozaps]: thread zaps are only available outside of the app store
+            replies.count_replies(ev)
+            events.add_replies(ev: ev)
+        }
+
         // associate with events as well
-        return self.events.store_zap(zap: zap)
+        return stored
     }
     
     var pubkey: String {

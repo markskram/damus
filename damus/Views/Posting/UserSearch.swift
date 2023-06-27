@@ -25,6 +25,7 @@ struct UserSearch: View {
     @Binding var postTextViewCanScroll: Bool
 
     @Binding var post: NSMutableAttributedString
+    @EnvironmentObject var tagModel: TagModel
     
     var users: [SearchedUser] {
         guard let contacts = damus_state.contacts.event else {
@@ -48,18 +49,21 @@ struct UserSearch: View {
         }
         let mutableString = NSMutableAttributedString(attributedString: post)
         mutableString.replaceCharacters(in: wordRange, with: tagAttributedString)
+        ///adjust cursor position appropriately: ('diff' used in TextViewWrapper / updateUIView after below update of 'post')
+        tagModel.diff = tagAttributedString.length - wordRange.length
+        
         post = mutableString
         focusWordAttributes = (nil, nil)
         newCursorIndex = wordRange.location + tagAttributedString.string.count
     }
 
     private func createUserTag(for user: SearchedUser, with pk: String) -> NSMutableAttributedString {
-        let name = Profile.displayName(profile: user.profile, pubkey: pk).username
+        let name = Profile.displayName(profile: user.profile, pubkey: pk).username.truncate(maxLength: 50)
         let tagString = "@\(name)\u{200B} "
 
         let tagAttributedString = NSMutableAttributedString(string: tagString,
                                    attributes: [NSAttributedString.Key.font: UIFont.systemFont(ofSize: 18.0),
-                                                NSAttributedString.Key.link: "@\(pk)"])
+                                                NSAttributedString.Key.link: "nostr:\(pk)"])
         tagAttributedString.removeAttribute(.link, range: NSRange(location: tagAttributedString.length - 2, length: 2))
         tagAttributedString.addAttributes([NSAttributedString.Key.foregroundColor: UIColor.label], range: NSRange(location: tagAttributedString.length - 2, length: 2))
         

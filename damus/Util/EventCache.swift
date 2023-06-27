@@ -62,7 +62,7 @@ class ZapsDataModel: ObservableObject {
     }
     
     func confirm_nwc(reqid: String) {
-        guard let zap = zaps.first(where: { z in z.request.id == reqid }),
+        guard let zap = zaps.first(where: { z in z.request.ev.id == reqid }),
               case .pending(let pzap) = zap
         else {
             return
@@ -83,22 +83,26 @@ class ZapsDataModel: ObservableObject {
     }
    
     func from(_ pubkey: String) -> [Zapping] {
-        return self.zaps.filter { z in z.request.pubkey == pubkey }
+        return self.zaps.filter { z in z.request.ev.pubkey == pubkey }
     }
     
     @discardableResult
     func remove(reqid: String) -> Bool {
-        guard zaps.first(where: { z in z.request.id == reqid }) != nil else {
+        guard zaps.first(where: { z in z.request.ev.id == reqid }) != nil else {
             return false
         }
         
-        self.zaps = zaps.filter { z in z.request.id != reqid }
+        self.zaps = zaps.filter { z in z.request.ev.id != reqid }
         return true
     }
 }
 
 class RelativeTimeModel: ObservableObject {
     @Published var value: String = ""
+}
+
+class MediaMetaModel: ObservableObject {
+    @Published var fill: ImageFill? = nil
 }
 
 class EventData {
@@ -108,6 +112,7 @@ class EventData {
     var zaps_model : ZapsDataModel
     var relative_time: RelativeTimeModel = RelativeTimeModel()
     var validated: ValidationResult
+    var media_metadata_model: MediaMetaModel
     
     var translations: TranslateStatus {
         return translations_model.state
@@ -126,6 +131,7 @@ class EventData {
         self.artifacts_model = .init(state: .not_loaded)
         self.zaps_model = .init(zaps)
         self.validated = .unknown
+        self.media_metadata_model = MediaMetaModel()
         self.preview_model = .init(state: .not_loaded)
     }
 }
@@ -135,6 +141,7 @@ class EventCache {
     private var replies = ReplyMap()
     private var cancellable: AnyCancellable?
     private var image_metadata: [String: ImageMetadataState] = [:]
+    private var video_meta: [String: VideoPlayerModel] = [:]
     private var event_data: [String: EventData] = [:]
     
     //private var thread_latest: [String: Int64]
@@ -168,6 +175,9 @@ class EventCache {
     @discardableResult
     func store_zap(zap: Zapping) -> Bool {
         let data = get_cache_data(zap.target.id).zaps_model
+        if let ev = zap.event {
+            insert(ev)
+        }
         return insert_uniq_sorted_zap_by_amount(zaps: &data.zaps, new_zap: zap)
     }
     
@@ -175,7 +185,7 @@ class EventCache {
         switch zap.target {
         case .note(let note_target):
             let zaps = get_cache_data(note_target.note_id).zaps_model
-            zaps.remove(reqid: zap.request.id)
+            zaps.remove(reqid: zap.request.ev.id)
         case .profile:
             // these aren't stored anywhere yet
             break
@@ -192,6 +202,30 @@ class EventCache {
     
     func lookup_img_metadata(url: URL) -> ImageMetadataState? {
         return image_metadata[url.absoluteString.lowercased()]
+    }
+    
+    @MainActor
+    func lookup_media_size(url: URL) -> CGSize? {
+        if let img_meta = lookup_img_metadata(url: url) {
+            return img_meta.meta.dim?.size
+        }
+        
+        return get_video_player_model(url: url).size
+    }
+    
+    func store_video_player_model(url: URL, meta: VideoPlayerModel) {
+        video_meta[url.absoluteString] = meta
+    }
+    
+    @MainActor
+    func get_video_player_model(url: URL) -> VideoPlayerModel {
+        if let model = video_meta[url.absoluteString] {
+            return model
+        }
+        
+        let model = VideoPlayerModel()
+        video_meta[url.absoluteString] = model
+        return model
     }
     
     func parent_events(event: NostrEvent) -> [NostrEvent] {
@@ -257,6 +291,7 @@ class EventCache {
     
     private func prune() {
         events = [:]
+        video_meta = [:]
         event_data = [:]
         replies.replies = [:]
     }
@@ -365,9 +400,17 @@ func preload_image(url: URL) {
     
     print("Preloading image \(url.absoluteString)")
     
-    KingfisherManager.shared.retrieveImage(with: ImageResource(downloadURL: url)) { val in
+    KingfisherManager.shared.retrieveImage(with: Kingfisher.ImageResource(downloadURL: url)) { val in
         print("Preloaded image \(url.absoluteString)")
     }
+}
+
+func is_animated_image(url: URL) -> Bool {
+    guard let ext = url.pathComponents.last?.split(separator: ".").last?.lowercased() else {
+        return false
+    }
+    
+    return ext == "gif"
 }
 
 func preload_event(plan: PreloadPlan, state: DamusState) async {
@@ -388,6 +431,13 @@ func preload_event(plan: PreloadPlan, state: DamusState) async {
         }
         
         for url in arts.images {
+            guard !is_animated_image(url: url) else {
+                // jb55: I have a theory that animated images are not working with the preloader due
+                // to some disk-cache write race condition. normal images need not apply
+                
+                continue
+            }
+            
             preload_image(url: url)
         }
     }

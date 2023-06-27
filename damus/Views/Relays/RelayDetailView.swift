@@ -75,11 +75,13 @@ struct RelayDetailView: View {
                         UserViewRow(damus_state: state, pubkey: pubkey)
                     }
                 }
-                Section(NSLocalizedString("Relay", comment: "Label to display relay address.")) {
-                    HStack {
-                        Text(relay)
-                        Spacer()
-                        RelayStatus(pool: state.pool, relay: relay)
+                if let relay_connection {
+                    Section(NSLocalizedString("Relay", comment: "Label to display relay address.")) {
+                        HStack {
+                            Text(relay)
+                            Spacer()
+                            RelayStatusView(connection: relay_connection)
+                        }
                     }
                 }
                 if nip11.is_paid {
@@ -88,7 +90,7 @@ struct RelayDetailView: View {
                     }, header: {
                         Text("Paid Relay", comment: "Section header that indicates the relay server requires payment.")
                     }, footer: {
-                        Text("This is a paid relay, you must pay for posts to be accepted.", comment: "Footer description that explains that the relay server requires payment to post.")
+                        Text("This is a paid relay, you must pay for notes to be accepted.", comment: "Footer description that explains that the relay server requires payment to post.")
                     })
                 }
                 
@@ -133,6 +135,10 @@ struct RelayDetailView: View {
             }
         }
         return attrString
+    }
+    
+    private var relay_connection: RelayConnection? {
+        state.pool.get_relay(relay)?.connection
     }
 }
 
